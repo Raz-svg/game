@@ -1,6 +1,9 @@
 import pygame
 import random
 import sys
+import json
+import os
+from datetime import datetime
 
 
 pygame.init()
@@ -98,6 +101,45 @@ class Game:
         self.title_font = pygame.font.Font(None, 72)
         self.small_font = pygame.font.Font(None, 24)
         self.enemy_spawn_timer = 0
+        self.score_history_file = "score_history.json"
+        self.score_history = self.load_score_history()
+        
+    def load_score_history(self):
+    
+        if os.path.exists(self.score_history_file):
+            try:
+                with open(self.score_history_file, 'r') as f:
+                    return json.load(f)
+            except:
+                return []
+        return []
+        
+    def save_score_history(self):
+        
+        try:
+            with open(self.score_history_file, 'w') as f:
+                json.dump(self.score_history, f, indent=2)
+        except:
+            pass
+            
+    def add_score_to_history(self, score):
+        """Add a new score to history with timestamp"""
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.score_history.append({
+            "score": score,
+            "date": timestamp
+        })
+        # Sort by score in descending order
+        self.score_history.sort(key=lambda x: x["score"], reverse=True)
+        # Keep only top 10 scores
+        self.score_history = self.score_history[:10]
+        self.save_score_history()
+        
+    def get_high_score(self):
+        """Get the highest score from history"""
+        if self.score_history:
+            return self.score_history[0]["score"]
+        return 0
         
     def handle_resize(self, new_width, new_height):
        
@@ -158,6 +200,7 @@ class Game:
        
         shadow_color = (50, 50, 50)
         score_text = f"Score: {self.score}"
+        high_score_text = f"High Score: {self.get_high_score()}"
         
         
         shadow_surface = self.font.render(score_text, True, shadow_color)
@@ -166,6 +209,13 @@ class Game:
       
         main_surface = self.font.render(score_text, True, CYAN)
         self.screen.blit(main_surface, (10, 10))
+        
+        # Draw high score
+        high_score_shadow = self.small_font.render(high_score_text, True, shadow_color)
+        self.screen.blit(high_score_shadow, (12, 52))
+        
+        high_score_main = self.small_font.render(high_score_text, True, YELLOW)
+        self.screen.blit(high_score_main, (10, 50))
         
        
         instruction_lines = [
@@ -183,9 +233,163 @@ class Game:
            
             text_surface = self.small_font.render(text, True, color)
             self.screen.blit(text_surface, (10, y_offset + i * 25))
+            
+    def main_menu(self):
+        
+        menu_running = True
+        
+        while menu_running:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    return False
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_SPACE:
+                        return True  # Start game
+                    elif event.key == pygame.K_h:
+                        self.show_score_history()
+                    elif event.key == pygame.K_q:
+                        return False
+                elif event.type == pygame.VIDEORESIZE:
+                    self.handle_resize(event.w, event.h)
+            
+           
+            self.screen.fill(BLACK)
+            
+           
+            for i in range(0, self.screen_width, 60):
+                for j in range(0, self.screen_height, 60):
+                    color_intensity = int(20 + 15 * ((i + j + pygame.time.get_ticks() // 50) % 100) / 100)
+                    color = (0, color_intensity, color_intensity // 2)
+                    pygame.draw.rect(self.screen, color, (i, j, 30, 30))
+            
+           
+            title_text = "SPACE SHOOTER"
+            title_shadow = self.title_font.render(title_text, True, (50, 50, 50))
+            title_main = self.title_font.render(title_text, True, CYAN)
+            
+            title_x = self.screen_width // 2 - title_main.get_width() // 2
+            title_y = self.screen_height // 2 - 150
+            
+            self.screen.blit(title_shadow, (title_x + 3, title_y + 3))
+            self.screen.blit(title_main, (title_x, title_y))
+            
+           
+            high_score = self.get_high_score()
+            high_score_text = f"HIGH SCORE: {high_score}"
+            high_score_shadow = self.font.render(high_score_text, True, (80, 80, 0))
+            high_score_main = self.font.render(high_score_text, True, YELLOW)
+            
+            high_score_x = self.screen_width // 2 - high_score_main.get_width() // 2
+            high_score_y = self.screen_height // 2 - 80
+            
+            self.screen.blit(high_score_shadow, (high_score_x + 2, high_score_y + 2))
+            self.screen.blit(high_score_main, (high_score_x, high_score_y))
+            
+            # Menu options
+            menu_options = [
+                "Press SPACE to start",
+                "Press H to view score history", 
+                "Press Q to quit"
+            ]
+            
+            y_start = self.screen_height // 2 - 20
+            for i, option in enumerate(menu_options):
+                option_shadow = self.font.render(option, True, (60, 60, 60))
+                option_main = self.font.render(option, True, WHITE)
+                
+                option_x = self.screen_width // 2 - option_main.get_width() // 2
+                option_y = y_start + i * 40
+                
+                self.screen.blit(option_shadow, (option_x + 2, option_y + 2))
+                self.screen.blit(option_main, (option_x, option_y))
+            
+            pygame.display.flip()
+            self.clock.tick(FPS)
+        
+        return False
+        
+    def show_score_history(self):
+      
+        history_running = True
+        
+        while history_running:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    history_running = False
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE or event.key == pygame.K_BACKSPACE:
+                        history_running = False
+                elif event.type == pygame.VIDEORESIZE:
+                    self.handle_resize(event.w, event.h)
+            
+            self.screen.fill(BLACK)
+            
+
+            for i in range(0, self.screen_width, 40):
+                for j in range(0, self.screen_height, 40):
+                    color_intensity = int(15 + 10 * ((i + j) % 80) / 80)
+                    color = (color_intensity, 0, color_intensity)
+                    pygame.draw.rect(self.screen, color, (i, j, 20, 20))
+            
+            title_text = "SCORE HISTORY"
+            title_shadow = self.title_font.render(title_text, True, (80, 0, 80))
+            title_main = self.title_font.render(title_text, True, PURPLE)
+            
+            title_x = self.screen_width // 2 - title_main.get_width() // 2
+            title_y = 50
+            
+            self.screen.blit(title_shadow, (title_x + 3, title_y + 3))
+            self.screen.blit(title_main, (title_x, title_y))
+            
+            header_y = 130
+            rank_header = self.font.render("RANK", True, YELLOW)
+            score_header = self.font.render("SCORE", True, YELLOW)
+            date_header = self.font.render("DATE", True, YELLOW)
+            
+            self.screen.blit(rank_header, (50, header_y))
+            self.screen.blit(score_header, (150, header_y))
+            self.screen.blit(date_header, (300, header_y))
+            
+            # Score history
+            if self.score_history:
+                for i, entry in enumerate(self.score_history[:10]):
+                    y_pos = header_y + 40 + i * 30
+                    
+                    # Rank
+                    rank_text = f"{i + 1}."
+                    rank_surface = self.font.render(rank_text, True, WHITE)
+                    self.screen.blit(rank_surface, (50, y_pos))
+                    
+                    # Score
+                    score_text = str(entry["score"])
+                    score_color = CYAN if i == 0 else WHITE  # Highlight top score
+                    score_surface = self.font.render(score_text, True, score_color)
+                    self.screen.blit(score_surface, (150, y_pos))
+                    
+                    # Date
+                    date_text = entry["date"]
+                    date_surface = self.small_font.render(date_text, True, WHITE)
+                    self.screen.blit(date_surface, (300, y_pos))
+            else:
+                no_scores_text = "No scores recorded yet!"
+                no_scores_surface = self.font.render(no_scores_text, True, RED)
+                no_scores_x = self.screen_width // 2 - no_scores_surface.get_width() // 2
+                self.screen.blit(no_scores_surface, (no_scores_x, 200))
+            
+            # Instructions
+            instruction_text = "Press ESC or BACKSPACE to return"
+            instruction_surface = self.small_font.render(instruction_text, True, WHITE)
+            instruction_x = self.screen_width // 2 - instruction_surface.get_width() // 2
+            self.screen.blit(instruction_surface, (instruction_x, self.screen_height - 50))
+            
+            pygame.display.flip()
+            self.clock.tick(FPS)
         
     def game_over_screen(self):
-       
+    
+        is_high_score = self.score > self.get_high_score()
+        self.add_score_to_history(self.score)
+        
         self.screen.fill(BLACK)
         
        
@@ -198,7 +402,9 @@ class Game:
        
         game_over_text = "GAME OVER!"
         final_score_text = f"Final Score: {self.score}"
-        restart_text = "Press R to restart or Q to quit"
+        high_score_text = f"High Score: {self.get_high_score()}"
+        new_record_text = "NEW HIGH SCORE!" if is_high_score else ""
+        restart_text = "Press R to restart, H for history, or Q to quit"
         
        
         title_shadow = self.title_font.render(game_over_text, True, (100, 0, 0))
@@ -206,7 +412,7 @@ class Game:
         title_glow = self.title_font.render(game_over_text, True, ORANGE)
         
         title_x = self.screen_width // 2 - title_main.get_width() // 2
-        title_y = self.screen_height // 2 - 80
+        title_y = self.screen_height // 2 - 120
         
        
         for offset in [(2, 2), (-2, 2), (2, -2), (-2, -2)]:
@@ -217,22 +423,43 @@ class Game:
       
         self.screen.blit(title_main, (title_x, title_y))
         
+        # New high score notification
+        if new_record_text:
+            record_shadow = self.font.render(new_record_text, True, (120, 120, 0))
+            record_main = self.font.render(new_record_text, True, YELLOW)
+            
+            record_x = self.screen_width // 2 - record_main.get_width() // 2
+            record_y = self.screen_height // 2 - 70
+            
+            self.screen.blit(record_shadow, (record_x + 2, record_y + 2))
+            self.screen.blit(record_main, (record_x, record_y))
+        
      
         score_shadow = self.font.render(final_score_text, True, (80, 80, 80))
         score_main = self.font.render(final_score_text, True, CYAN)
         
         score_x = self.screen_width // 2 - score_main.get_width() // 2
-        score_y = self.screen_height // 2 - 20
+        score_y = self.screen_height // 2 - 30
         
         self.screen.blit(score_shadow, (score_x + 2, score_y + 2))
         self.screen.blit(score_main, (score_x, score_y))
+        
+        # High score display
+        high_score_shadow = self.font.render(high_score_text, True, (80, 80, 0))
+        high_score_main = self.font.render(high_score_text, True, YELLOW)
+        
+        high_score_x = self.screen_width // 2 - high_score_main.get_width() // 2
+        high_score_y = self.screen_height // 2 + 10
+        
+        self.screen.blit(high_score_shadow, (high_score_x + 2, high_score_y + 2))
+        self.screen.blit(high_score_main, (high_score_x, high_score_y))
         
        
         restart_shadow = self.font.render(restart_text, True, (60, 60, 60))
         restart_main = self.font.render(restart_text, True, WHITE)
         
         restart_x = self.screen_width // 2 - restart_main.get_width() // 2
-        restart_y = self.screen_height // 2 + 40
+        restart_y = self.screen_height // 2 + 60
         
         self.screen.blit(restart_shadow, (restart_x + 2, restart_y + 2))
         self.screen.blit(restart_main, (restart_x, restart_y))
@@ -250,11 +477,18 @@ class Game:
                         
                         self.__init__()
                         return True
+                    elif event.key == pygame.K_h:
+                        self.show_score_history()
                     elif event.key == pygame.K_q:
                         return False
         return False
         
     def run(self):
+        # Show main menu first
+        if not self.main_menu():
+            pygame.quit()
+            sys.exit()
+            
         running = True
         
         while running:
